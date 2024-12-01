@@ -1,0 +1,20 @@
+[package]
+name = "ceno-qemu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+embedded-alloc = "0.6"
+fdt-rs = { version = "0.4", default-features = false, features = ["alloc"] }
+panic-halt = "1"
+riscv = { version = "0.12", features = ["s-mode", "critical-section-single-hart"] }
+riscv-rt = { version = "0.13", features = ["single-hart", "s-mode"] }
+sbi-rt = "0.0.3"
+virtio-drivers = "0.8"
+
+[profile.dev]
+debug = false
+
+[profile.release]
+codegen-units = 1
+lto = true

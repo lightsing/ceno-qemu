@@ -1,0 +1,9 @@
+[build]
+target = "riscv32im-unknown-none-elf"
+
+[target.riscv32im-unknown-none-elf]
+runner = "qemu-system-riscv32 -nographic -machine virt -serial mon:stdio -m 3G -drive file=elf,format=raw,id=hd0,if=none -device virtio-blk-device,drive=hd0 -kernel"
+rustflags = [
+    "-C", "link-arg=-Tmemory.x",
+    "-C", "link-arg=-Tlink.x",
+]

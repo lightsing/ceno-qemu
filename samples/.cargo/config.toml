@@ -1,0 +1,12 @@
+[build]
+target = "riscv32im-unknown-none-elf"
+
+[target.riscv32im-unknown-none-elf]
+rustflags = [
+    "-C", "link-arg=-Tmemory.x",
+    "-C", "link-arg=-Tceno_link.x",
+]
+
+[profile.release]
+lto = true
+panic = "abort"
