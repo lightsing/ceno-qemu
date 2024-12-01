@@ -1,7 +1,7 @@
+use crate::memory;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
 use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
-use crate::memory;
 
 pub struct HalImpl;
 

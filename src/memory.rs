@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::alloc::Layout;
-use riscv::register::satp;
 use core::ptr::{read_volatile, write_volatile};
+use riscv::register::satp;
 use sbi_rt::Physical;
 
 #[global_allocator]
@@ -35,23 +35,13 @@ fn allocate_page_table() -> &'static mut PageTable {
     Box::leak(Box::new(PageTable([0; ENTRY_COUNT])))
 }
 
-fn map_1gib_region(
-    root_table: &mut PageTable,
-    vaddr: usize,
-    paddr: u64,
-    flags: u64,
-) {
+fn map_1gib_region(root_table: &mut PageTable, vaddr: usize, paddr: u64, flags: u64) {
     let vpn2 = vaddr >> 30 & 0x1FF;
     let l2_entry = &mut root_table.0[vpn2];
     *l2_entry = paddr | flags | PTE_V;
 }
 
-fn map_2mib_region(
-    root_table: &mut PageTable,
-    vaddr: usize,
-    paddr: u64,
-    flags: u64,
-) {
+fn map_2mib_region(root_table: &mut PageTable, vaddr: usize, paddr: u64, flags: u64) {
     let vpn1 = vaddr >> 21 & 0x1FF;
     let vpn2 = vaddr >> 30 & 0x1FF;
 
@@ -65,12 +55,7 @@ fn map_2mib_region(
     *l1_entry = paddr | flags | PTE_V;
 }
 
-fn map_4k_region(
-    root_table: &mut PageTable,
-    vaddr: usize,
-    paddr: u64,
-    flags: u64,
-) {
+fn map_4k_region(root_table: &mut PageTable, vaddr: usize, paddr: u64, flags: u64) {
     let vpn = [
         (vaddr >> 12) & 0x1FF, // VPN[0]
         (vaddr >> 21) & 0x1FF, // VPN[1]
@@ -93,13 +78,7 @@ fn map_4k_region(
     *l0_entry = paddr | flags | PTE_V;
 }
 
-fn map_region(
-    root_table: &mut PageTable,
-    vaddr: usize,
-    paddr: u64,
-    flags: u64,
-    size: usize,
-) {
+fn map_region(root_table: &mut PageTable, vaddr: usize, paddr: u64, flags: u64, size: usize) {
     let mut vaddr = vaddr;
     let mut paddr = paddr;
     let mut size = size;
@@ -112,7 +91,10 @@ fn map_region(
             vaddr += L2_PAGE_SIZE;
             paddr += L2_PAGE_SIZE as u64;
             size -= L2_PAGE_SIZE;
-        } else if vaddr % L1_PAGE_SIZE == 0 && paddr % L1_PAGE_SIZE as u64 == 0 && size >= L1_PAGE_SIZE {
+        } else if vaddr % L1_PAGE_SIZE == 0
+            && paddr % L1_PAGE_SIZE as u64 == 0
+            && size >= L1_PAGE_SIZE
+        {
             map_2mib_region(root_table, vaddr, paddr, flags);
             vaddr += L1_PAGE_SIZE;
             paddr += L1_PAGE_SIZE as u64;
@@ -126,19 +108,37 @@ fn map_region(
     }
 }
 
-pub fn create_guest_page_table(
-    mut paddr_start: u64,
-) {
+pub fn create_guest_page_table(mut paddr_start: u64) {
     let mut root_table = allocate_page_table();
 
     // 0x8000_0000-0xFFFF_0000 2GiB
     const GUEST_MEM_SIZE: usize = 0xFFFF_0000 - 0x8000_0000;
-    let ram: Physical<&mut [u8]> = Physical::new(GUEST_MEM_SIZE, paddr_start as usize, (paddr_start >> 32) as usize);
-    map_region(&mut root_table, 0x8000_0000, paddr_start, PTE_R | PTE_W, GUEST_MEM_SIZE);
+    let ram: Physical<&mut [u8]> = Physical::new(
+        GUEST_MEM_SIZE,
+        paddr_start as usize,
+        (paddr_start >> 32) as usize,
+    );
+    map_region(
+        &mut root_table,
+        0x8000_0000,
+        paddr_start,
+        PTE_R | PTE_W,
+        GUEST_MEM_SIZE,
+    );
     paddr_start += GUEST_MEM_SIZE as u64;
 
     // ROM 256MiB 0x2000_0000..0x3000_0000
     const GUEST_ROM_SIZE: usize = 0x3000_0000 - 0x2000_0000;
-    let rom: Physical<&mut [u8]> = Physical::new(GUEST_ROM_SIZE, paddr_start as usize, (paddr_start >> 32) as usize);
-    map_region(&mut root_table, 0x2000_0000, paddr_start, PTE_R, GUEST_ROM_SIZE);
+    let rom: Physical<&mut [u8]> = Physical::new(
+        GUEST_ROM_SIZE,
+        paddr_start as usize,
+        (paddr_start >> 32) as usize,
+    );
+    map_region(
+        &mut root_table,
+        0x2000_0000,
+        paddr_start,
+        PTE_R,
+        GUEST_ROM_SIZE,
+    );
 }

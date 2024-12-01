@@ -1,11 +1,11 @@
-use alloc::vec::Vec;
+use crate::{print, println};
 use core::arch::asm;
 use core::ptr::NonNull;
 use fdt_rs::base::DevTree;
 use fdt_rs::prelude::*;
+use virtio_drivers::device::blk::VirtIOBlk;
 use virtio_drivers::transport::mmio::{MmioTransport, VirtIOHeader};
 use virtio_drivers::transport::{DeviceType, Transport};
-use crate::println;
 
 extern "C" {
     static _stext: u8;
@@ -42,25 +42,16 @@ pub fn stack_start() -> usize {
     unsafe { &_stack_start as *const u8 as usize }
 }
 
-#[derive(Debug)]
 pub struct DeviceInfo {
     pub physical_memory: PhysicalMemory,
-    pub virtio_blk_device: VirtioBlkDevice,
+    pub elf_blk_device: VirtIOBlk<crate::virtio::HalImpl, MmioTransport>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct PhysicalMemory {
     pub base_address: u64,
     pub size: u64,
 }
-
-#[derive(Debug)]
-pub struct VirtioBlkDevice {
-    pub mmio_transport: MmioTransport,
-    pub size: usize
-}
-
-
 
 /// Detect devices from device tree
 ///
@@ -72,12 +63,16 @@ pub unsafe fn detect_devices(dtb_address: *const u8) -> DeviceInfo {
 
     println!(".text: {:#x}", text_start());
     println!("stack top: {:#x}", stack_start());
-    println!("heap: {:#x} - {:#x}", heap_start(), heap_start() + heap_size());
+    println!(
+        "heap: {:#x} - {:#x}",
+        heap_start(),
+        heap_start() + heap_size()
+    );
 
     println!("DTB address: {:#x}", dtb_address as usize);
 
     let mut physical_memory = PhysicalMemory::default();
-    let mut virtio_blk_device = None;
+    let mut elf_blk_device = None;
 
     let tree = unsafe { DevTree::from_raw_pointer(dtb_address) }.expect("failed to parse dev tree");
     for node in tree.nodes().iterator() {
@@ -88,7 +83,7 @@ pub unsafe fn detect_devices(dtb_address: *const u8) -> DeviceInfo {
             for prop in node.props().iterator() {
                 let prop = prop.expect("failed to get prop");
                 let name = prop.name().expect("failed to get prop name");
-                if !name.starts_with("reg") {
+                if name != "reg" {
                     continue;
                 }
 
@@ -102,21 +97,39 @@ pub unsafe fn detect_devices(dtb_address: *const u8) -> DeviceInfo {
             for prop in node.props().iterator() {
                 let prop = prop.expect("failed to get prop");
                 let name = prop.name().expect("failed to get prop name");
-                if !name.starts_with("reg") {
+                if name != "reg" {
                     continue;
                 }
-                let base_address = prop.u64(0).expect("failed to read virtio_mmio base_address") as usize;
+                let base_address = prop
+                    .u64(0)
+                    .expect("failed to read virtio_mmio base_address")
+                    as usize;
                 let size = prop.u64(1).expect("failed to read virtio_mmio size") as usize;
-                let header = NonNull::new(base_address as *mut VirtIOHeader).expect("base_address null pointer");
+                let header = NonNull::new(base_address as *mut VirtIOHeader)
+                    .expect("base_address null pointer");
                 if let Ok(transport) = unsafe { MmioTransport::new(header) } {
                     if transport.device_type() != DeviceType::Block {
                         continue; // we don't need other devices
                     }
-                    virtio_blk_device = Some(VirtioBlkDevice {
-                        mmio_transport: transport,
-                        size
-                    });
-                    println!("virtio_mmio: {:#x} - {:#x}", base_address, base_address + size);
+
+                    let mut blk =
+                        VirtIOBlk::<crate::virtio::HalImpl, MmioTransport>::new(transport)
+                            .expect("failed to create virtio_blk_device");
+
+                    let mut id = [0u8; 20];
+                    blk.device_id(&mut id).unwrap();
+                    let device_id = core::str::from_utf8(&id).unwrap().trim_end_matches('\0');
+
+                    match device_id {
+                        "CENO-GUEST-ELF" => {
+                            elf_blk_device = Some(blk);
+                            print!("elf blk device: ");
+                        }
+                        _ => {
+                            print!("unknown virtio blk device: ");
+                        }
+                    }
+                    println!("{:#x} - {:#x}", base_address, base_address + size);
                 }
             }
         }
@@ -126,12 +139,12 @@ pub unsafe fn detect_devices(dtb_address: *const u8) -> DeviceInfo {
     if physical_memory.base_address == 0 || physical_memory.size == 0 {
         panic!("failed to detect memory size");
     }
-    if virtio_blk_device.is_none() {
+    if elf_blk_device.is_none() {
         panic!("none of virtio_blk_device found");
     }
 
     DeviceInfo {
         physical_memory,
-        virtio_blk_device: virtio_blk_device.unwrap(),
+        elf_blk_device: elf_blk_device.unwrap(),
     }
 }

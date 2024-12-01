@@ -8,7 +8,9 @@ impl core::fmt::Write for DebugConsole {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let mut slice = s.as_bytes();
         while !slice.is_empty() {
-            match sbi_rt::console_write(Physical::new(slice.len(),slice.as_ptr() as usize, 0)).into_result() {
+            match sbi_rt::console_write(Physical::new(slice.len(), slice.as_ptr() as usize, 0))
+                .into_result()
+            {
                 Ok(n) => {
                     slice = &slice[n..];
                 }
@@ -48,7 +50,6 @@ fn panic(info: &PanicInfo) -> ! {
     println!("-------------------------------------PANIC--------------------------------------");
     println!("{}", info);
     println!("--------------------------------SYSTEM ABORTED----------------------------------");
-
 
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::SystemFailure).unwrap();
     unreachable!()
