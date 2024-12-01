@@ -3,7 +3,7 @@ target = "riscv32im-unknown-none-elf"
 
 [target.riscv32im-unknown-none-elf]
 runner = """qemu-system-riscv32 \
--nographic -machine virt -m 3G \
+-nographic -machine virt -m 2G \
 -serial mon:stdio \
 -drive file=elf,format=raw,id=elf,if=none,readonly=on -device virtio-blk-device,drive=elf,serial=CENO-GUEST-ELF \
 -kernel"""

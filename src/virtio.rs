@@ -12,7 +12,7 @@ unsafe impl Hal for HalImpl {
         (ptr as PhysAddr, NonNull::new(ptr).expect("invalid pointer"))
     }
 
-    unsafe fn dma_dealloc(paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
+    unsafe fn dma_dealloc(_paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
         let layout = Layout::from_size_align(pages * PAGE_SIZE, PAGE_SIZE).expect("invalid layout");
         memory::HEAP.dealloc(vaddr.as_ptr(), layout);
         0
